@@ -14,10 +14,10 @@ import streamlit as st
 ######################## Backend ##############################
 class AI():
     def __init__(self):
-        self.db = chromadb.PersistentClient(path="rag_prove\chromadb_index") ######RELAVTIVE PATH!!!!!!!##############
+        self.db = chromadb.PersistentClient(path="RAG\chromadb_index") ######RELAVTIVE PATH!!!!!!!##############
         self.collection = self.db.get_or_create_collection("rag_collection")
 
-    def query(self, q, top=20):
+    def query(self, q, top=2):
         res_db = self.collection.query(query_texts=[q])["documents"][0][0:top]
         context = ' '.join(res_db).replace("\n", " ")
         return context
