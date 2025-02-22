@@ -2,7 +2,7 @@
 #                        RAG APP                               #
 ################################################################
 
-#-> streamlit run rag_app.py
+## -> streamlit run rag_app.py
 
 ## for db
 import chromadb #0.5.0
