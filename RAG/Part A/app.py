@@ -15,7 +15,7 @@ import streamlit as st #1.35.0
 ######################## Backend ##############################
 class AI():
 	def __init__(self):
-		db = chromadb.PersistentClient()
+		db = chromadb.PersistentClient(path="RAG\Part A\chroma")
 		self.collection = db.get_or_create_collection("pdf")
 
 	def query(self, q, top=10):
