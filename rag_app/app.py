@@ -23,14 +23,14 @@ class AI():
 		context = ' '.join(res_db).replace("\n", " ")
 		return context
 
-	def respond(self, lst_messages, model="llama3.2", use_knowledge=True):
+	def respond(self, lst_messages, model="llama3.2", use_knowledge=False):
 		q = lst_messages[-1]["content"]
 		context = self.query(q)
 
 		if use_knowledge:
 			prompt = "Give the most accurate answer using your knowledge and the folling additional information: \n"+context
 		else:
-			prompt = "Give the most accurate answer using only the folling information: \n"+context
+			prompt = "Give the most accurate answer using only the folling information: \n"+context+"If you don't know, do not answer"
                 
 		res_ai = ollama.chat(model=model, 
 							 messages=[{"role":"system", "content":prompt}]+lst_messages,
