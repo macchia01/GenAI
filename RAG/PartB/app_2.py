@@ -15,7 +15,7 @@ import streamlit as st
 ######################## Backend ##############################
 class AI():
     def __init__(self):
-        self.db = chromadb.PersistentClient(path="RAG\PartB\chromadb_index") 
+        self.db = chromadb.PersistentClient(path="chromadb_index") 
         self.collection = self.db.get_or_create_collection("rag_collection")
 
     def query(self, q, top=10):

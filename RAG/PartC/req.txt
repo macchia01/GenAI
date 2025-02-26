@@ -1,6 +1,0 @@
-langchain==0.3.17
-langchain_ollama==0.2.3
-ollama==0.4.7
-PyPDF2==3.0.1
-streamlit==1.41.1
-langchain-community==0.3.16

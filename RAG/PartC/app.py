@@ -1,24 +1,86 @@
-import streamlit as st
+################################################################
+#                        RAG APP - OLLAMA                      #
+################################################################
+
+## -> streamlit run app.py
+## -> check the current working directory to set the path for the chroma db
+
+## for db
+import chromadb
+## for ai
 import ollama
-from utils.QA_Bot import QA_Bot
-from utils.PDF_Reader import PDF_4_QA
+## for app
+import streamlit as st
 
+######################## Backend ##############################
+class AI():
+    def __init__(self):
+        self.db = chromadb.PersistentClient(path="chromadb_index") 
+        self.collection = self.db.get_or_create_collection("rag_collection")
 
-# Assicurati di usare llama3.2 (già installato localmente)
-ollama.pull("llama3.2")
+    def query(self, q, top=10):
+        res_db = self.collection.query(query_texts=[q])["documents"][0][0:top]
+        context = ' '.join(res_db).replace("\n", " ")
+        return context
 
-# Streamlit app
-def main():
-    st.sidebar.title("Carica un file PDF")
+    def respond(self, lst_messages, model="llama3.2"):  # Removed use_knowledge flag
+        q = lst_messages[-1]["content"]
+        context = self.query(q)
+
+        template = """
+        You are an assistant for question-answering tasks.
+        Use the following pieces of retrieved context to answer the question:
+        If you don't know the answer from the context, then do not answer from your own knowledge.
+        Keep the answer concise.
+
+        #### Retrieved Context ####
+        {context}
+
+        #### Question ####
+        {question}
+
+        #### LLM Response ####
+        """
+        prompt = template.format(context=context, question=q)
+        
+        res_ai = ollama.chat(model=model, messages=[{"role": "system", "content": prompt}] + lst_messages, stream=True)
+        
+        for res in res_ai:
+            chunk = res["message"]["content"]
+            app["full_response"] += chunk
+            yield chunk
+
+ai = AI()
+
+######################## Frontend #############################
+st.title('💬 Ask your questions')
+st.sidebar.title("Chat History")
+app = st.session_state
+
+if "messages" not in app:
+    app["messages"] = [{"role": "assistant", "content": "I will only answer based on retrieved context. If no context is found, I will not respond."}]
+
+if 'history' not in app:
+    app['history'] = []
+
+if 'full_response' not in app:
+    app['full_response'] = ''
+
+## Display previous messages
+for msg in app["messages"]:
+    st.chat_message(msg["role"], avatar=("😎" if msg["role"] == "user" else "👾")).write(msg["content"])
+
+## Chat input
+if txt := st.chat_input():
+    app["messages"].append({"role": "user", "content": txt})
+    st.chat_message("user", avatar="😎").write(txt)
     
-    uploaded_file = st.sidebar.file_uploader("Scegli un file PDF", type="pdf")
+    ## AI response
+    app["full_response"] = ""
+    st.chat_message("assistant", avatar="👾").write_stream(ai.respond(app["messages"]))
+    app["messages"].append({"role": "assistant", "content": app["full_response"]})
     
-    if uploaded_file is not None:
-        st.sidebar.success("File caricato con successo.")
-        vector_store = PDF_4_QA(uploaded_file)
-        QA_Bot(vector_store)
-    else:
-        st.sidebar.warning("Carica un file PDF per iniziare.")
-
-if __name__ == '__main__':
-    main()
+    ## Show history
+    app['history'].append(f"😎: {txt}")
+    app['history'].append(f"👾: {app['full_response']}")
+    st.sidebar.markdown("<br />".join(app['history']) + "<br /><br />", unsafe_allow_html=True)
