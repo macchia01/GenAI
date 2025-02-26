@@ -15,6 +15,9 @@ import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
+from langchain.agents import AgentType, initialize_agent
+from langchain.tools import Tool
+from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 
 ######################## Backend ##############################
 class AI():
@@ -22,14 +25,22 @@ class AI():
         self.db = chromadb.PersistentClient(path="chromadb_index") 
         self.collection = self.db.get_or_create_collection("rag_collection")
 
-    def query(self, q, top=10):
+    def query_documents(self, q, top=10):
+        if self.collection.count() == 0:
+            return "No documents found in the database."
+        
         res_db = self.collection.query(query_texts=[q])["documents"][0][0:top]
         context = ' '.join(res_db).replace("\n", " ")
         return context
 
     def respond(self, lst_messages, model="llama3.2"):
         q = lst_messages[-1]["content"]
-        context = self.query(q)
+        context = self.query_documents(q)
+        if context == "No documents found in the database.":
+            context = ""
+
+        q = lst_messages[-1]["content"]
+        context = self.query_documents(q)
 
         template = """
         You are an assistant for question-answering tasks.
@@ -55,6 +66,32 @@ class AI():
             yield chunk
 
 ai = AI()
+
+# Define tools for the agent
+search_tool = Tool(
+    name="Web Search",
+    func=DuckDuckGoSearchAPIWrapper().run,
+    description="Use this tool when the user asks for the latest information from the web."
+)
+
+document_search_tool = Tool(
+    name="Document Search",
+    func=ai.query_documents,
+    description="Use this tool to search among uploaded documents for relevant information."
+)
+
+assistant_tool = Tool(
+    name="AI Assistant",
+    func=lambda query: '
+'.join(ai.respond([{"role": "user", "content": query}])), 
+    description="Use this tool for general conversations and assistance."
+)
+
+agent = initialize_agent(
+    tools=[search_tool, document_search_tool, assistant_tool],
+    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+    verbose=True
+)
 
 ######################## Frontend #############################
 st.title('💬 Ask your questions')
@@ -110,15 +147,16 @@ for msg in app["messages"]:
 
 ## Chat input
 if txt := st.chat_input():
+    response = agent.run(txt)
     app["messages"].append({"role": "user", "content": txt})
     st.chat_message("user", avatar="😎").write(txt)
     
     ## AI response
-    app["full_response"] = ""
-    st.chat_message("assistant", avatar="👾").write_stream(ai.respond(app["messages"]))
-    app["messages"].append({"role": "assistant", "content": app["full_response"]})
+    app["full_response"] = response
+    st.chat_message("assistant", avatar="👾").write(response)
+    app["messages"].append({"role": "assistant", "content": response})
     
     ## Show history
     app['history'].append(f"😎: {txt}")
-    app['history'].append(f"👾: {app['full_response']}")
+    app['history'].append(f"👾: {response}")
     st.sidebar.markdown("<br />".join(app['history']) + "<br /><br />", unsafe_allow_html=True)
